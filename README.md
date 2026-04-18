@@ -140,7 +140,7 @@ python -m pytest tests/ -v
 @article{nous2025,
   title   = {NOUS: A Self-Improving LLM Framework for Consumer Hardware via NOUS-EVOLVE},
   author  = {NOUS Research Team},
-  year    = {2025},
+  year    = {2026},
   url     = {https://github.com/nous-llm/nous}
 }
 ```
