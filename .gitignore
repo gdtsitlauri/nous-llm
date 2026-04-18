@@ -1,0 +1,14 @@
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.db
+*.pkl
+models/
+results/
+.env
+*.log
