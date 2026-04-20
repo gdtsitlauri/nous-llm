@@ -1,5 +1,10 @@
 # NOUS — Neural Omnidirectional Understanding System
 
+**Author:** George David Tsitlauri  
+**Affiliation:** Dept. of Informatics & Telecommunications, University of Thessaly, Greece  
+**Contact:** gdtsitlauri@gmail.com  
+**Year:** 2026
+
 **First open-source self-improving LLM framework for consumer hardware (4GB VRAM).**
 
 NOUS runs the full autonomous self-improvement loop on an NVIDIA GTX 1650 using a
@@ -137,11 +142,12 @@ python -m pytest tests/ -v
 ## Citation
 
 ```bibtex
-@article{nous2025,
-  title   = {NOUS: A Self-Improving LLM Framework for Consumer Hardware via NOUS-EVOLVE},
-  author  = {NOUS Research Team},
-  year    = {2026},
-  url     = {https://github.com/nous-llm/nous}
+@misc{tsitlauri2026nous,
+  author = {George David Tsitlauri},
+  title  = {NOUS: A Self-Improving LLM Framework for Consumer Hardware via NOUS-EVOLVE},
+  year   = {2026},
+  institution = {University of Thessaly},
+  email  = {gdtsitlauri@gmail.com}
 }
 ```
 
