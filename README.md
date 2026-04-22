@@ -2,13 +2,18 @@
 
 **Neural Omnidirectional Understanding System**
 
-**Author:** George David Tsitlauri  
-**Contact:** gdtsitlauri@gmail.com  
-**Website:** gdtsitlauri.dev  
-**GitHub:** github.com/gdtsitlauri  
-**Year:** 2026
 
 NOUS is a consumer-hardware research framework for autonomous LLM self-improvement. It combines a quantized local language model with a nine-module loop covering self-critique, memory, knowledge-graph updates, hallucination control, adversarial self-play, and execution-based code critique.
+
+
+## Project Metadata
+
+| Field | Value |
+| --- | --- |
+| Author | George David Tsitlauri |
+| Affiliation | Dept. of Informatics & Telecommunications, University of Thessaly, Greece |
+| Contact | gdtsitlauri@gmail.com |
+| Year | 2026 |
 
 ## Evidence Status
 
@@ -115,23 +120,23 @@ The benchmark runner now exports structured JSON and CSV artifacts so future REA
 | Consumer-hardware feasibility as a codebase | Supported |
 | Strong external empirical claims | Require rerun and saved outputs |
 
+## Why NOUS Can Still Be Strong
+
+NOUS remains a serious repo because the missing benchmark archive does not mean
+the system is incomplete; it means the evidence trail needs regeneration.
+
+- the architecture is implemented,
+- the benchmark harness is implemented,
+- the persistence layer is now explicit,
+- and the next pass is operational rather than conceptual.
+
+The correct positioning is therefore "methodology-complete self-improving LLM
+framework awaiting regenerated archival outputs," not "unfinished idea repo."
+
 ## Limitations
 
 - The current checked-in working copy does not preserve the historical benchmark outputs.
 - Small local models are noisy critics of their own generations.
 - Any future benchmark claims should be derived directly from saved JSON/CSV exports.
 
-## Citation
 
-```bibtex
-@misc{tsitlauri2026nous,
-  author = {George David Tsitlauri},
-  title  = {NOUS: A Self-Improving LLM Framework for Consumer Hardware},
-  year   = {2026},
-  email  = {gdtsitlauri@gmail.com}
-}
-```
-
-## License
-
-MIT License.
