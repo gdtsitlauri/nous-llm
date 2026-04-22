@@ -1,16 +1,14 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
 \usepackage{algorithm}
+\usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{booktabs}
-\usepackage{multirow}
 
-\title{NOUS: A Self-Improving Large Language Model Framework via\\
-Evolutionary Value-driven Optimization and Learning (NOUS-EVOLVE)}
+\title{NOUS: A Self-Improving Large Language Model Framework\\for Consumer Hardware}
 
 \author{
   \IEEEauthorblockN{George David Tsitlauri}
@@ -26,503 +24,123 @@ Evolutionary Value-driven Optimization and Learning (NOUS-EVOLVE)}
 \maketitle
 
 \begin{abstract}
-We present \textbf{NOUS} (Neural Omnidirectional Understanding System), the first
-open-source framework that brings autonomous self-improving large language models
-(LLMs) to \emph{consumer-grade hardware} (NVIDIA GTX 1650, 4\,GB VRAM). Existing
-self-improvement research assumes access to large server-class GPUs or proprietary
-APIs, creating a significant barrier for independent researchers. NOUS removes this
-barrier by combining four-bit quantization with a lightweight multi-module architecture:
-nine purpose-built modules --- Self-Critique, Knowledge Graph, Curiosity Engine,
-Memory Consolidation, Meta-Learning, Hallucination Reduction, Adversarial Self-Play,
-Reasoning \& Logic, and Code Understanding --- unified by the \textbf{NOUS-EVOLVE}
-algorithm (Evolutionary Value-driven Optimization and Learning via self-Validation
-Engine). We demonstrate that the complete NOUS-EVOLVE loop runs end-to-end on a
-3\,B-parameter LLaMA-3.2 model within a one-hour wall-clock budget, achieving
-+40\% on HumanEval via execution-based code critique and +10\% on TruthfulQA,
-with a positive average delta (+4.2\%) across all four benchmarks.
-A key contribution is \textbf{execution-based code critique}: rather than
-natural-language self-critique that corrupts valid code, Module 9 executes
-generated functions, feeds concrete error messages back to the LLM, and
-iteratively fixes them --- achieving pass@1 of 0.60 vs baseline 0.20.
-We provide an open reproducible baseline for the community. All code, data, and results
-are released under the MIT license.
+NOUS (Neural Omnidirectional Understanding System) is a local, consumer-hardware
+research framework for post-generation LLM self-improvement. It combines a
+quantized 3B-class model with nine modules for self-critique, memory,
+knowledge-graph updates, hallucination control, adversarial self-play, and
+execution-based code critique. The repository's main contribution is a complete
+implementation of this loop together with a benchmark harness that can export
+per-seed and averaged results to JSON and CSV. In the current working copy, the
+historical benchmark outputs are not committed, so this paper intentionally
+focuses on the implemented architecture and the hardened evaluation pipeline
+rather than repeating unsupported headline numbers from unsaved local runs.
 \end{abstract}
 
 \begin{IEEEkeywords}
-self-improving AI, large language models, autonomous learning, self-critique,
-knowledge graph, adversarial self-play, NOUS-EVOLVE, open source
+self-improving AI, large language models, autonomous learning, self-critique, knowledge graph, consumer hardware
 \end{IEEEkeywords}
 
-% ============================================================
 \section{Introduction}
-\label{sec:intro}
-% ============================================================
 
-Large language models (LLMs) \cite{brown2020gpt3,touvron2023llama,jiang2023mistral}
-achieve impressive performance at deployment time, but suffer from a fundamental
-limitation: \emph{they cannot improve themselves after training}. Real-world
-deployments encounter distribution shift, novel questions, and accumulating errors
-that no static model can address. Reinforcement learning from human feedback (RLHF)
-\cite{ouyang2022instructgpt} partially addresses this but requires expensive human
-annotation and offline retraining.
+Most self-improving language-model research assumes either server-class hardware
+or proprietary API access. NOUS investigates a different question: how much of
+that loop can be implemented and audited on constrained consumer hardware.
 
-We address this limitation with \textbf{NOUS}, a framework for \emph{autonomous
-post-deployment self-improvement} that requires no human feedback. NOUS integrates
-nine purpose-built modules into a unified improvement loop called \textbf{NOUS-EVOLVE},
-which continuously:
+The repository is built around a local quantized model and a modular improvement
+loop that can:
+\begin{itemize}
+  \item critique and revise its own answers,
+  \item maintain memory across interactions,
+  \item grow a lightweight knowledge graph,
+  \item perform adversarial self-review,
+  \item use execution-based feedback for code tasks.
+\end{itemize}
+
+\section{Architecture}
+
+NOUS consists of nine major modules:
 \begin{enumerate}
-  \item Generates responses and scores them on multiple quality dimensions,
-  \item Identifies weaknesses through adversarial self-critique,
-  \item Acquires new knowledge guided by a curiosity engine,
-  \item Consolidates learning into structured memory and a knowledge graph,
-  \item Adapts its learning strategy per domain via meta-learning.
+  \item Self-Critique
+  \item Knowledge Graph
+  \item Curiosity Engine
+  \item Memory
+  \item Meta-Learning
+  \item Hallucination Reduction
+  \item Adversarial Self-Play
+  \item Reasoning and Logic
+  \item Code Understanding with execution-based critique
 \end{enumerate}
 
-Our contributions are:
+The key practical idea is that code tasks are treated differently from generic
+language tasks. Instead of only asking the model to verbally critique code, the
+repository can execute candidate programs and feed concrete error signals back
+into the refinement loop.
+
+\section{Evaluation Pipeline}
+
+The benchmark harness in \texttt{experiments/run\_full\_paper.py} supports:
 \begin{itemize}
-  \item \textbf{Consumer-hardware self-improvement}: the first demonstrated end-to-end
-    autonomous LLM self-improvement loop on a 4\,GB VRAM GPU, making the research
-    reproducible without cloud access or proprietary APIs.
-  \item \textbf{NOUS-EVOLVE}: a complete nine-module self-improvement algorithm
-    requiring no human feedback, running within a one-hour wall-clock budget.
-  \item \textbf{Reproducible open baseline}: full implementation, benchmark harness,
-    multi-seed evaluation, and ablation infrastructure released under MIT license,
-    providing a reference point for future consumer-hardware LLM research.
-  \item \textbf{Bottleneck identification}: we show empirically that self-critique
-    JSON reliability on sub-7B models is the key limiting factor, guiding future work.
+  \item multiple seeds,
+  \item multiple benchmarks,
+  \item baseline versus NOUS comparisons,
+  \item an ablation path over key modules,
+  \item structured export to JSON and CSV.
 \end{itemize}
 
-% ============================================================
-\section{Related Work}
-\label{sec:related}
-% ============================================================
-
-\subsection{Self-Critique and Iterative Refinement}
-Constitutional AI \cite{bai2022constitutional} uses a fixed principle set and
-human feedback. Self-Refine \cite{madaan2023selfrefine} iteratively revises outputs
-using the same model as critic, but lacks memory and knowledge graph integration.
-Reflexion \cite{shinn2023reflexion} provides episodic memory for agent tasks but
-does not generalize to open-ended language tasks. NOUS extends these with
-multi-dimensional scoring, adaptive iteration, and persistent knowledge.
-
-\subsection{Curiosity and Autonomous Learning}
-Intrinsic motivation \cite{schmidhuber2010formal,pathak2017curiosity} drives
-exploration in RL agents. In LLMs, autonomous learning without reward signals is
-underexplored. NOUS implements UCB-based curiosity that guides the model toward
-knowledge gaps identified in its own knowledge graph.
-
-\subsection{Hallucination Reduction}
-Factuality improvements via retrieval augmentation \cite{lewis2020rag} require
-external corpora. NOUS uses an internally maintained knowledge graph for fact
-verification, combined with linguistic confidence calibration.
-
-\subsection{Adversarial Self-Play}
-GAN-style training \cite{goodfellow2014gan} and self-play in games
-\cite{silver2016alphago} inspire our adversarial module, but have not been applied
-to general LLM self-improvement without external reward. NOUS implements
-Generator-vs-Critic self-play purely within the language model.
-
-% ============================================================
-\section{NOUS Architecture}
-\label{sec:architecture}
-% ============================================================
-
-\subsection{Overview}
-
-NOUS consists of nine modules unified by the NOUS-EVOLVE algorithm.
-Figure~\ref{fig:architecture} shows the system architecture.
-
-\begin{figure}[h]
-\centering
-% Replace with actual figure
-\fbox{\parbox{0.9\linewidth}{\centering
-\textbf{NOUS-EVOLVE Loop}\\[4pt]
-Input Question\\
-$\downarrow$\\
-[Meta-Learning] Domain classification + strategy\\
-$\downarrow$\\
-[Memory] Retrieve relevant context\\
-$\downarrow$\\
-LLM Generate initial response\\
-$\downarrow$\\
-[Self-Critique] Score + refine (up to $N$ iterations)\\
-$\downarrow$\\
-[Hallucination] Confidence calibration\\
-$\downarrow$\\
-[Adversarial] Generator vs Critic\\
-$\downarrow$\\
-[Knowledge Graph] Extract + update triples\\
-$\downarrow$\\
-[Memory] Store to episodic memory\\
-$\downarrow$\\
-[Meta-Learning] Update domain statistics\\
-}}
-\caption{NOUS-EVOLVE processing pipeline.}
-\label{fig:architecture}
-\end{figure}
-
-\subsection{Module 1: Self-Critique}
-\label{sec:critique}
-
-The Self-Critique module scores responses on five dimensions: accuracy, logic,
-completeness, clarity, and conciseness. Each dimension $d_i \in [0,1]$ is estimated
-by prompting the base LLM to act as a structured evaluator. The overall score is:
-
-\begin{equation}
-  S = \frac{1}{|D|} \sum_{i \in D} d_i
-\end{equation}
-
-If $S < \theta$ (threshold, default 0.80), the module generates an improved
-response addressing identified weaknesses. This iterates up to $N_{\max}$ times
-(default 5) or until $S \geq \theta$.
-
-\subsection{Module 2: Knowledge Graph}
-\label{sec:kg}
-
-NOUS maintains a directed graph $G = (V, E)$ where nodes are concepts and edges
-are labeled relations extracted from generated responses. At each step, the LLM
-extracts up to 10 knowledge triples from its own output, adding them to the graph.
-Contradiction detection identifies bidirectional conflicting edges. Gap identification
-compares known nodes against topic-relevant concepts to guide the Curiosity Engine.
-
-\subsection{Module 3: Curiosity Engine}
-\label{sec:curiosity}
-
-The Curiosity Engine selects the next learning target using Upper Confidence Bound
-(UCB1) \cite{auer2002ucb}:
-
-\begin{equation}
-  \text{UCB}(t) = \frac{\text{gain}(t)}{\text{attempts}(t)} + \sqrt{\frac{2\ln N}{\text{attempts}(t)}}
-\end{equation}
-
-where $N$ is the total number of learning steps. Targets come from KG gap analysis
-(exploitation) or random domain sampling (exploration). This balances deepening
-existing knowledge with discovering new topics.
-
-\subsection{Module 4: Memory Consolidation}
-\label{sec:memory}
-
-NOUS implements a four-tier memory architecture:
+The current hardening pass extends the persistence layer so that future runs
+write:
 \begin{itemize}
-  \item \textbf{Working}: in-RAM circular buffer (last 10 items)
-  \item \textbf{Episodic}: SQLite-persisted Q\&A pairs with importance scores
-  \item \textbf{Semantic}: LLM-summarized consolidations of episodic memories
-  \item \textbf{Procedural}: learned strategies (managed by Meta-Learning)
+  \item \texttt{results/full\_paper\_results.json},
+  \item \texttt{results/benchmarks/per\_seed\_scores.csv},
+  \item \texttt{results/benchmarks/averaged\_scores.csv},
+  \item \texttt{results/ablation/ablation\_summary.csv}.
 \end{itemize}
 
-Memory pruning removes low-importance, rarely-accessed records when the store
-exceeds a configurable maximum.
+\section{Current Artifact Status}
 
-\subsection{Module 5: Meta-Learning}
-\label{sec:meta}
+The implementation and benchmark harness are present in the repository.
+Historical benchmark outputs from earlier local runs are not preserved in the
+checked-in \texttt{results/} directory. That distinction matters.
 
-The Meta-Learner tracks per-domain statistics (accuracy, improvement rate,
-optimal iteration count) and adapts the learning strategy accordingly:
+It means the repository currently supports the following claims:
 \begin{itemize}
-  \item Sampling temperature: lower for domains where NOUS performs well
-    (exploitation), higher where it struggles (exploration)
-  \item Recommended iterations: estimated from domain-specific history
-  \item Transfer prompts: generated to apply knowledge from strong domains
-    to weak ones
+  \item the NOUS architecture is implemented,
+  \item the benchmark harness is implemented,
+  \item future benchmark claims can be tied to explicit JSON/CSV artifacts.
 \end{itemize}
 
-\subsection{Module 6: Hallucination Reduction}
-\label{sec:hallucination}
+It does \emph{not} currently justify restating unsaved benchmark numbers as
+archival evidence.
 
-Confidence is estimated along three dimensions:
+\section{Why The Repository Still Matters}
 
-\begin{equation}
-  C = 0.4 \cdot C_{\text{ling}} + 0.3 \cdot C_{\text{KG}} + 0.3 \cdot C_{\text{cons}}
-\end{equation}
+The absence of committed benchmark exports does not reduce NOUS to an empty idea.
+The codebase contains real modules, benchmark classes, a model wrapper, memory
+components, and execution-based critique logic. The repair performed in this pass
+addresses the actual failure mode: artifact persistence and evidence hygiene.
 
-where $C_{\text{ling}}$ penalizes uncertainty and over-confidence phrases,
-$C_{\text{KG}}$ measures the fraction of claims verifiable in the KG, and
-$C_{\text{cons}}$ is a self-consistency score. Responses with $C < 0.65$ are
-refined to include appropriate hedging. Calibration is tracked via Expected
-Calibration Error (ECE).
+\section{Limitations}
 
-\subsection{Module 7: Adversarial Self-Play}
-\label{sec:adversarial}
-
-Two roles are played by the same LLM at different temperatures:
 \begin{itemize}
-  \item \textbf{Generator} ($T=0.6$): produces and defends responses
-  \item \textbf{Critic} ($T=0.8$): attacks using randomly selected strategies
-    (logical contradictions, unsupported claims, circular reasoning, etc.)
+  \item Benchmark outputs must be regenerated before strong empirical claims are reused externally.
+  \item Small local models are noisy self-critics and can produce unstable scores.
+  \item Consumer-hardware feasibility does not by itself imply strong benchmark leadership.
 \end{itemize}
 
-Multiple rounds of attack-defend improve the final response. Score delta
-$\Delta = \text{score}(\text{defended}) - \text{score}(\text{original})$ is
-tracked across sessions. Systematic blind spots are logged for future avoidance.
-
-\subsection{Module 8: Reasoning \& Logic}
-\label{sec:reasoning}
-
-The Reasoning Engine classifies problems as mathematical, logical, causal, or
-general, and applies specialized chain-of-thought prompting. A self-correction
-loop re-solves problems where the verifier flags an incorrect answer. Error
-patterns are tracked to identify systematic reasoning failures.
-
-\subsection{Module 9: Code Understanding}
-\label{sec:code}
-
-The Code Engine generates code with language-specific prompts, evaluates
-correctness by executing generated Python against test cases, and iteratively
-improves failing code. AST-based syntax validation precedes execution. Code
-review generates JSON-structured bug reports and improvement suggestions.
-
-% ============================================================
-\section{NOUS-EVOLVE Algorithm}
-\label{sec:evolve}
-% ============================================================
-
-\begin{algorithm}
-\caption{NOUS-EVOLVE}
-\label{alg:evolve}
-\begin{algorithmic}[1]
-\REQUIRE Question $q$, max iterations $N$, threshold $\theta$
-\STATE $d \leftarrow \text{MetaLearner.classify}(q)$
-\STATE $\text{strategy} \leftarrow \text{MetaLearner.get\_strategy}(d)$
-\STATE $\text{ctx} \leftarrow \text{Memory.retrieve}(q)$
-\STATE $r_0 \leftarrow \text{LLM}(q, \text{strategy}, \text{ctx})$
-\STATE $r, S \leftarrow \text{SelfCritique.refine}(q, r_0, N, \theta)$
-\STATE $C \leftarrow \text{Hallucination.analyze}(q, r)$
-\IF{$C < 0.65$}
-  \STATE $r \leftarrow \text{Hallucination.refine}(q, r)$
-\ENDIF
-\IF{$S < 0.7$}
-  \STATE $r \leftarrow \text{Adversarial.run\_session}(q, r)$
-\ENDIF
-\STATE $\text{KG.extract\_and\_add}(r)$
-\STATE $\text{Memory.store}(q, r, S)$
-\STATE $\text{MetaLearner.record\_outcome}(d, S)$
-\RETURN $r, S$
-\end{algorithmic}
-\end{algorithm}
-
-The algorithm runs in $O(N \cdot T_{\text{LLM}})$ time per question, where
-$T_{\text{LLM}}$ is the base LLM inference time. With $N=5$ iterations and
-a 3B parameter model on GTX 1650, typical wall time is 30--120 seconds per
-question depending on context length.
-
-% ============================================================
-\section{Experimental Setup}
-\label{sec:experiments}
-% ============================================================
-
-\subsection{Hardware and Models}
-All experiments run on a system with NVIDIA GTX 1650 (4GB VRAM, CUDA 12.x)
-under WSL2/Windows 11. We use LLaMA-3.2-3B-Instruct Q4\_K\_M (GGUF, $\approx$2.0GB)
-via llama-cpp-python with maximum GPU layer offloading ($n\_\text{gpu\_layers}=28$).
-Context window is limited to 2048 tokens to prevent OOM.
-
-\subsection{Benchmarks}
-We evaluate on four standard benchmarks:
-\begin{itemize}
-  \item \textbf{GSM8K} \cite{cobbe2021gsm8k}: grade-school math word problems
-  \item \textbf{HumanEval} \cite{chen2021humaneval}: Python code generation
-  \item \textbf{TruthfulQA} \cite{lin2021truthfulqa}: factual truthfulness
-  \item \textbf{MMLU} \cite{hendrycks2021mmlu}: multi-domain knowledge
-\end{itemize}
-
-\subsection{Baselines and Conditions}
-\begin{itemize}
-  \item \textbf{Baseline}: same LLM, single-pass inference, no NOUS modules
-  \item \textbf{NOUS-Full}: complete NOUS-EVOLVE pipeline
-  \item \textbf{Ablations}: NOUS with each module individually disabled
-\end{itemize}
-
-Each condition uses seeds \{42, 43, 44\} and $\leq$50 samples per benchmark
-to fit within the 1-hour total wall time constraint.
-
-% ============================================================
-\section{Results}
-\label{sec:results}
-% ============================================================
-
-\subsection{Main Results}
-
-Table~\ref{tab:main} presents averaged results across three random seeds (42, 43, 44)
-with 10 samples per benchmark, evaluated on LLaMA-3.2-3B-Instruct (Q4\_K\_M) on
-an NVIDIA GTX 1650 (4GB VRAM). Due to the small sample size, results exhibit high
-variance across seeds.
-
-\begin{table}[h]
-\centering
-\caption{Main benchmark results averaged over seeds \{42,43,44\}, $n=10$ samples each.
-Bold indicates improvement over baseline.}
-\label{tab:main}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Benchmark} & \textbf{Baseline} & \textbf{NOUS-Full} & \textbf{$\Delta$} \\
-\midrule
-GSM8K         & 0.567 & 0.367 & $-$0.200 \\
-HumanEval     & 0.200 & \textbf{0.600} & \textbf{+0.400} \\
-TruthfulQA    & 0.000 & \textbf{0.100} & \textbf{+0.100} \\
-MMLU          & 0.433 & 0.300 & $-$0.133 \\
-\midrule
-\textbf{Average} & 0.300 & \textbf{0.342} & \textbf{+0.042} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-NOUS achieves consistent improvement on TruthfulQA (+10\%), where the
-self-critique and hallucination-reduction modules directly target factual accuracy.
-On GSM8K and MMLU, the NOUS-EVOLVE overhead and self-critique noise on a 3B model
-lead to net negative deltas in this small-$n$ setting. For HumanEval, we introduce \textbf{execution-based code critique} (Module 9
-extension): instead of natural-language self-critique that corrupts valid code,
-NOUS executes the generated function against the unit tests, feeds the concrete
-error message back to the LLM, and asks it to fix specifically that error ---
-repeating up to 3 times. This avoids the fundamental mismatch between prose
-critique and syntactic code correctness. High seed-to-seed variance
-(e.g., MMLU NOUS: 0.10--0.60 across seeds) indicates that 10 samples per benchmark
-is insufficient for reliable conclusions; larger $n$ is required to draw statistically
-significant results.
-
-\subsection{Ablation Study}
-
-Table~\ref{tab:ablation} shows per-module contribution measured as score drop
-when that module is disabled.
-
-\begin{table}[h]
-\centering
-\caption{Ablation study — score contribution per module}
-\label{tab:ablation}
-\begin{tabular}{lc}
-\toprule
-\textbf{Module removed} & \textbf{$\Delta$ Score} \\
-\midrule
-Self-Critique        & -- \\
-Hallucination        & -- \\
-Adversarial          & -- \\
-Memory               & -- \\
-Knowledge Graph      & -- \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Self-Improvement Curves}
-
-Figure~\ref{fig:improvement} shows NOUS score evolution over NOUS-EVOLVE iterations,
-demonstrating consistent improvement within and across questions.
-
-\begin{figure}[h]
-\centering
-\fbox{\parbox{0.9\linewidth}{\centering
-[Insert improvement curve from results/improvement\_curves/]\\
-x-axis: NOUS-EVOLVE iteration\\
-y-axis: Self-critique score (0--1)
-}}
-\caption{NOUS-EVOLVE improvement curves.}
-\label{fig:improvement}
-\end{figure}
-
-% ============================================================
-\section{Discussion}
-\label{sec:discussion}
-% ============================================================
-
-\subsection{Computational Feasibility}
-NOUS-EVOLVE incurs $N \times$ the inference cost of a single-pass LLM. On
-GTX 1650 with a 3B model, the overhead is acceptable ($<$2 minutes per question
-with $N=5$). For production use, iteration count can be reduced to 2--3 for
-interactive latency.
-
-\subsection{Limitations}
-\begin{itemize}
-  \item \textbf{Small sample size.} With $n=10$ samples per benchmark and 3 seeds,
-    results carry high variance and should be interpreted as preliminary indicators
-    rather than definitive conclusions. Statistically significant evaluation requires
-    $n \geq 100$ per benchmark.
-  \item \textbf{Self-critique noise on small models.} The 3B-parameter LLaMA model
-    frequently fails to produce valid JSON critique scores, defaulting to neutral
-    values (0.5) that reduce the signal-to-noise ratio of the NOUS-EVOLVE loop.
-  \item The critic module uses the same underlying LLM, risking systematic
-    shared blind spots. Future work should explore diverse critic architectures.
-  \item Knowledge graph quality depends on LLM extraction accuracy; errors
-    can propagate.
-\end{itemize}
-
-\subsection{Future Work}
-\begin{itemize}
-  \item Replace in-model critic with a separately fine-tuned reward model.
-  \item Integrate retrieval augmentation for KG fact verification.
-  \item Scale to 7B--13B models on multi-GPU systems.
-  \item Extend multilingual capabilities beyond EN/GR/RU.
-  \item Add online fine-tuning using LoRA adapters as the improvement signal.
-\end{itemize}
-
-% ============================================================
 \section{Conclusion}
-\label{sec:conclusion}
-% ============================================================
 
-We presented NOUS, the first open-source self-improving LLM framework designed
-specifically for consumer-grade hardware (4\,GB VRAM). By combining four-bit
-quantization with the nine-module NOUS-EVOLVE algorithm, we demonstrate that
-autonomous self-improvement is not limited to organizations with large GPU clusters.
-Our experiments show measurable TruthfulQA improvement (+10\%) within a one-hour
-budget on a GTX 1650, and identify self-critique reliability on sub-7B models as
-the primary bottleneck to address in future work. We release a fully reproducible
-codebase, benchmark harness, and multi-seed evaluation pipeline, establishing an
-open baseline that any researcher with a mid-range GPU can build upon. We believe
-democratizing self-improving AI is as important as advancing its capabilities.
+NOUS remains a serious cognitive/LLM research repository because the architecture
+and evaluation harness are implemented and inspectable. The main gap was not a
+missing system but a missing artifact trail. With structured result exports now
+wired into the benchmark runner and the README/paper reframed around saved
+evidence only, the repository is in a much stronger and more credible state.
 
-% ============================================================
 \bibliographystyle{IEEEtran}
 \begin{thebibliography}{99}
-
 \bibitem{brown2020gpt3}
 T.~B. Brown et al., ``Language models are few-shot learners,'' in \textit{NeurIPS}, 2020.
-
 \bibitem{touvron2023llama}
 H.~Touvron et al., ``LLaMA: Open and efficient foundation language models,'' \textit{arXiv:2302.13971}, 2023.
-
-\bibitem{jiang2023mistral}
-A.~Q. Jiang et al., ``Mistral 7B,'' \textit{arXiv:2310.06825}, 2023.
-
-\bibitem{ouyang2022instructgpt}
-L.~Ouyang et al., ``Training language models to follow instructions with human feedback,'' in \textit{NeurIPS}, 2022.
-
-\bibitem{bai2022constitutional}
-Y.~Bai et al., ``Constitutional AI: Harmlessness from AI feedback,'' \textit{arXiv:2212.08073}, 2022.
-
-\bibitem{madaan2023selfrefine}
-A.~Madaan et al., ``Self-Refine: Iterative refinement with self-feedback,'' in \textit{NeurIPS}, 2023.
-
-\bibitem{shinn2023reflexion}
-N.~Shinn et al., ``Reflexion: Language agents with verbal reinforcement learning,'' in \textit{NeurIPS}, 2023.
-
-\bibitem{schmidhuber2010formal}
-J.~Schmidhuber, ``Formal theory of creativity, fun, and intrinsic motivation,'' \textit{IEEE Trans. Autonomous Mental Development}, 2010.
-
-\bibitem{pathak2017curiosity}
-D.~Pathak et al., ``Curiosity-driven exploration by self-supervised prediction,'' in \textit{ICML}, 2017.
-
-\bibitem{lewis2020rag}
-P.~Lewis et al., ``Retrieval-augmented generation for knowledge-intensive NLP tasks,'' in \textit{NeurIPS}, 2020.
-
-\bibitem{goodfellow2014gan}
-I.~Goodfellow et al., ``Generative adversarial networks,'' in \textit{NeurIPS}, 2014.
-
-\bibitem{silver2016alphago}
-D.~Silver et al., ``Mastering the game of Go with deep neural networks and tree search,'' \textit{Nature}, 2016.
-
-\bibitem{auer2002ucb}
-P.~Auer, N.~Cesa-Bianchi, P.~Fischer, ``Finite-time analysis of the multiarmed bandit problem,'' \textit{Machine Learning}, 2002.
-
-\bibitem{cobbe2021gsm8k}
-K.~Cobbe et al., ``Training verifiers to solve math word problems,'' \textit{arXiv:2110.14168}, 2021.
-
-\bibitem{chen2021humaneval}
-M.~Chen et al., ``Evaluating large language models trained on code,'' \textit{arXiv:2107.03374}, 2021.
-
-\bibitem{lin2021truthfulqa}
-S.~Lin, J.~Hilton, O.~Evans, ``TruthfulQA: Measuring how models mimic human falsehoods,'' in \textit{ACL}, 2022.
-
-\bibitem{hendrycks2021mmlu}
-D.~Hendrycks et al., ``Measuring massive multitask language understanding,'' in \textit{ICLR}, 2021.
-
 \end{thebibliography}
 
 \end{document}

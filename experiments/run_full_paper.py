@@ -1,6 +1,7 @@
 """Full paper experiment: all benchmarks, multi-seed, ablation, final report."""
 from __future__ import annotations
 import argparse
+import csv
 import json
 import logging
 import sys
@@ -69,6 +70,7 @@ def main():
 
     Path("results/benchmarks").mkdir(parents=True, exist_ok=True)
     Path("results/ablation").mkdir(parents=True, exist_ok=True)
+    Path("results/improvement_curves").mkdir(parents=True, exist_ok=True)
 
     global_start = time.time()
     all_results = {"seeds": {}, "averaged": {}, "ablation": {}}
@@ -178,6 +180,8 @@ def main():
 
     with open("results/full_paper_results.json", "w") as f:
         json.dump(all_results, f, indent=2)
+    _write_csv_exports(all_results, args.benchmarks)
+    _write_results_readme(all_results, args.benchmarks)
 
     print("\n" + "=" * 60)
     print("FINAL RESULTS (averaged across seeds)")
@@ -194,6 +198,93 @@ def main():
 
     print(f"\nWall time: {all_results['wall_time_min']} min")
     print("Saved: results/full_paper_results.json")
+
+
+def _write_csv(path: str, fieldnames: list[str], rows: list[dict[str, object]]) -> None:
+    with open(path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_csv_exports(all_results: dict, benchmarks: list[str]) -> None:
+    per_seed_rows: list[dict[str, object]] = []
+    averaged_rows: list[dict[str, object]] = []
+    ablation_rows: list[dict[str, object]] = []
+
+    for seed, payload in all_results.get("seeds", {}).items():
+        for benchmark in benchmarks:
+            baseline = payload.get("baseline", {}).get(benchmark)
+            nous = payload.get("nous", {}).get(benchmark)
+            per_seed_rows.append(
+                {
+                    "seed": seed,
+                    "benchmark": benchmark,
+                    "baseline": baseline,
+                    "nous": nous,
+                    "delta": None if baseline is None or nous is None else nous - baseline,
+                }
+            )
+
+    for benchmark, payload in all_results.get("averaged", {}).items():
+        averaged_rows.append(
+            {
+                "benchmark": benchmark,
+                "baseline": payload.get("baseline"),
+                "nous": payload.get("nous"),
+                "delta": payload.get("delta"),
+            }
+        )
+
+    for name, score in all_results.get("ablation", {}).items():
+        ablation_rows.append({"setting": name, "score": score})
+
+    _write_csv(
+        "results/benchmarks/per_seed_scores.csv",
+        ["seed", "benchmark", "baseline", "nous", "delta"],
+        per_seed_rows,
+    )
+    _write_csv(
+        "results/benchmarks/averaged_scores.csv",
+        ["benchmark", "baseline", "nous", "delta"],
+        averaged_rows,
+    )
+    _write_csv(
+        "results/ablation/ablation_summary.csv",
+        ["setting", "score"],
+        ablation_rows,
+    )
+
+
+def _write_results_readme(all_results: dict, benchmarks: list[str]) -> None:
+    lines = [
+        "# NOUS Results Layout",
+        "",
+        "The benchmark runner now persists the following artifacts when",
+        "`experiments/run_full_paper.py` completes successfully:",
+        "",
+        "- `results/full_paper_results.json`: canonical JSON export",
+        "- `results/benchmarks/per_seed_scores.csv`: one row per seed and benchmark",
+        "- `results/benchmarks/averaged_scores.csv`: mean baseline/NOUS deltas",
+        "- `results/ablation/ablation_summary.csv`: ablation settings and scores",
+        "",
+        "Current evidence status:",
+    ]
+    if all_results.get("averaged"):
+        lines.append("- A persisted benchmark aggregate is present in this run.")
+    else:
+        lines.append("- No averaged benchmark results were produced in this run.")
+    lines.extend(
+        [
+            "- If previous local runs existed but were not saved, treat them as exploratory history rather than archival evidence.",
+            "- Use the files above as the source of truth for README/paper numbers.",
+            "",
+            "Requested benchmarks:",
+            "- " + ", ".join(benchmarks),
+            "",
+        ]
+    )
+    Path("results/README.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 # ── Mock classes for ablation ──────────────────────────────────────────────
